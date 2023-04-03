@@ -1,0 +1,79 @@
+import pygame
+from math import *
+from copy import deepcopy
+import random
+from settings import *
+
+def clamp(source, min, max):
+	if (source > max):
+		return max
+	elif (source < min):
+		return min
+	else:
+		return source
+
+def dist(p1,p2):
+    return (p1[0]-p2[0])**2 + (p1[1]-p2[1])**2
+
+class boid():
+    def __init__(self, pos, vel, dir):
+        self.pos = pos
+        self.vel = vel
+        self.dir = dir
+
+class enemySwarm():
+    def __init__(self, pos, vel, num, dir = 180):
+        self.boids = []
+        for b in range(num):
+            self.boids.append(boid((random.randint(pos[0]-10,pos[0]+10), random.randint(pos[1]-10,pos[0]+10)), vel, radians(dir)))
+        self.averagedir = radians(dir)
+        self.centermass = pos
+    def update(self, scrn, dt, playerpos, asteroids):
+        for b in self.boids:
+            tempdir = 0
+            tempmass = [0,0]
+            boidinteractions = 1
+            bangle = [0]
+            for b2 in self.boids:
+                if b is b2 or dist(b.pos, b2.pos) > ENEMY_INTERACTION_DISTANCE:
+                    continue
+                #b.pos = (b.pos[0] + (b.pos[0]-b2.pos[0])**2*ENEMY_REPULSION*dt, b.pos[1] + (b.pos[1]-b2.pos[1])**2*ENEMY_REPULSION*dt)
+                rel_bx, rel_by = b2.pos[0] - b.pos[0], b2.pos[1] - b.pos[1]
+                a = atan2(rel_by, rel_bx)
+                if (abs(b.dir-a) <= ENEMY_FOV):
+                    bangle.append(a)
+                    tempdir += b2.dir
+                    tempmass[0] += b2.pos[0]
+                    tempmass[1] += b2.pos[1]
+                    boidinteractions += 1
+            avgdir = tempdir/boidinteractions
+            tempmass[0] /= boidinteractions
+            tempmass[1] /= boidinteractions
+
+            rel_x, rel_y = tempmass[0] - b.pos[0], tempmass[1] - b.pos[1]
+            angle = atan2(rel_y, rel_x)
+
+            rel_x2, rel_y2 = playerpos[0] - b.pos[0], playerpos[1] - b.pos[1]
+            angle2 = atan2(rel_y2, rel_x2)
+
+            b.dir += (angle-b.dir)*dt*ENEMY_MASS_ATTRACTION
+            b.dir += (angle2-b.dir)#*dt*ENEMY_PLAYER_ATTRACTION
+            for i in bangle:
+                b.dir += (i-b.dir)*dt*ENEMY_REPULSION
+            b.dir += (avgdir-b.dir+random.randint(-ENEMY_DIRECTION_VARIATION, ENEMY_DIRECTION_VARIATION))*dt*ENEMY_DIRECTION_ATTRACTION
+
+            for a in asteroids:
+                if dist(b.pos, a.pos) <= ENEMY_INTERACTION_DISTANCE:
+                    b.pos = (b.pos[0] + (b.pos[0]-a.pos[0])*ENEMY_OBSTACLE_REPULSION*dt, b.pos[1] + (b.pos[1]-a.pos[1])*ENEMY_OBSTACLE_REPULSION*dt)
+                    asteroidangle = 0
+                    rel_bx, rel_by = b2.pos[0] - b.pos[0], b2.pos[1] - b.pos[1]
+                    asteroidangle = atan2(rel_by, rel_bx)
+                    if (abs(b.dir-asteroidangle) <= ENEMY_FOV):
+                         b.dir += (asteroidangle-b.dir)#*dt*ENEMY_OBJECT_AVOIDANCE
+                
+
+            b.vel = (clamp(b.vel[0]+cos(b.dir)*dt*ENEMY_SPEED, -ENEMY_MAX_SPEED, ENEMY_MAX_SPEED), clamp(b.vel[1]+sin(b.dir)*dt*ENEMY_SPEED, -ENEMY_MAX_SPEED, ENEMY_MAX_SPEED))
+            b.vel = (b.vel[0], clamp(b.vel[1]+(b.pos[1]-ENEMY_HEIGHT_THRESHOLD)**2*dt*ENEMY_HEIGHT_WEIGHTING-(b.pos[1])**2*dt*ENEMY_HEIGHT_WEIGHTING, -ENEMY_MAX_SPEED, ENEMY_MAX_SPEED))
+
+            b.pos = (b.pos[0]+b.vel[0]*dt, b.pos[1]+b.vel[1]*dt)
+            pygame.draw.rect(scrn, ENEMY_BULLET_COLOUR, pygame.Rect(b.pos[0]-2, b.pos[1]-2, 5, 5))
