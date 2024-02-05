@@ -7,8 +7,8 @@ import random
 pygame.init()
 
 FPS = 6000
-TILE_SIZE = 32
-CHUNK_SIZE = Vector2(10, 10)
+TILE_SIZE = 16
+CHUNK_SIZE = Vector2(20, 20)
 
 width, height = 160 * 2, 180 * 2
 display = pygame.display.set_mode((width, height), SCALED | FULLSCREEN)
@@ -18,9 +18,24 @@ dt = 0
 
 class Particle:
     def __init__(self, pos, colour="white"):
-        self.pos = pos
+        self.pos = Vector2(pos)
+        self.velocity = Vector2()
+        self.drag = 0
         self.colour = colour
+        self.size = 5
+        self.size_per_second = 0
+        self.gravity = Vector2(0, 800)
         self.kill = False
+
+    def update(self):
+        self.velocity += self.gravity * dt
+        self.velocity = self.velocity.lerp(Vector2(), self.drag * dt)
+        self.pos += self.velocity * dt
+
+        self.size += self.size_per_second * dt
+
+    def draw(self, world):
+        pygame.draw.circle(display, self.colour, world.worldToScreenPosition(self.pos), self.size)
 
 
 class ExpandingCircleParticle(Particle):
@@ -169,6 +184,18 @@ while running:
     for event in pygame.event.get():
         if event.type == QUIT:
             running = False
+        elif event.type == MOUSEBUTTONDOWN:
+            if event.button == 1:
+                for i in range(20):
+                    particle = Particle(
+                        world.getMousePos()
+                    )
+                    particle.velocity = Vector2(
+                        random.randint(-20, 20),
+                        random.randint(-20, 20)
+                    ) * 10
+                    particle.colour = "white"
+                    world.particles.append(particle)
 
     display.fill("black")
 
