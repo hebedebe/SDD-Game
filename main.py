@@ -21,7 +21,7 @@ timescale = 1
 ui_manager = gui.UIManager((width, height))
 debug_box = gui.elements.UITextBox(
     "",
-    Rect(0, 0, 120, 30),
+    Rect(0, 0, 225, 65),
     ui_manager
 )
 
@@ -75,7 +75,7 @@ class Chunk:
     def __init__(self, pos):
         self.pos = Vector2(pos)
         self.tiles = [[0 for y in range(int(CHUNK_SIZE.y))] for x in range(int(CHUNK_SIZE.x))]
-        for i in range(5):
+        for i in range(3):
             self.tiles[
                 random.randint(0, int(CHUNK_SIZE.x) - 1)
             ][
@@ -197,9 +197,12 @@ class Player:
     def __init__(self, pos):
         self.pos = Vector2(pos)
         self.velocity = Vector2()
-        self.acceleration = Vector2(0, 800)
-        self.jump_strength = -400
+        self.controlled_velocity = Vector2()
+        self.acceleration = Vector2(0, 1200)
+        self.jump_strength = -800
         self.speed = 200
+        self.drag = 2
+        self.ground_drag = 20
         self.on_ground = False
         self.width = 16
         self.height = 32
@@ -212,27 +215,37 @@ class Player:
     def update(self, delta_time, world):
         keys = pygame.key.get_pressed()
 
-        self.velocity.x = (keys[K_d] - keys[K_a]) * self.speed
+        self.controlled_velocity.x = (keys[K_d] - keys[K_a]) * self.speed
         self.velocity += self.acceleration * delta_time
 
         self.on_ground = False
-        self.pos.x += self.velocity.x * delta_time
-        self.check_collision(Vector2(self.velocity.x, 0), world)
-        self.pos.y += self.velocity.y * delta_time
-        self.check_collision(Vector2(0, self.velocity.y), world)
+        self.pos.x += (self.velocity.x + self.controlled_velocity.x) * delta_time
+        self.check_collision(Vector2(self.velocity.x + self.controlled_velocity.x, 0), world)
+        self.pos.y += (self.velocity.y + self.controlled_velocity.y) * delta_time
+        self.check_collision(Vector2(0, self.velocity.y + self.controlled_velocity.y), world)
+
+        self.velocity -= self.velocity * (self.ground_drag if self.on_ground else self.drag) * delta_time
 
         world.target_camera_position = self.pos - Vector2(width//2 - self.width//2, height//2 - self.height//2)
 
-        self.mouse_direction = (world.getMousePos() - self.pos).normalize()
+        self.mouse_direction = (world.getMousePos() - self.centre()).normalize()
 
         for event in events:
             if event.type == MOUSEBUTTONDOWN:
                 if event.button == 1:
                     self.velocity += 1000 * self.mouse_direction
-                    print("Boost!")
+                    world.applyScreenshake(10)
+                    world.particles.append(
+                        ExpandingCircleParticle(
+                            self.centre(),
+                            40,
+                            "yellow"
+                        )
+                    )
 
         if keys[K_w] and self.on_ground:
             self.velocity.y = self.jump_strength
+            world.applyScreenshake(4)
 
     def check_collision(self, velocity, world):
         player_rect = pygame.Rect(self.pos.x, self.pos.y, self.width, self.height)
@@ -248,14 +261,19 @@ class Player:
                             if velocity.y > 0:
                                 self.pos.y = tile_rect.top - self.height
                                 self.velocity.y = 0
+                                self.controlled_velocity.y = 0
                                 self.on_ground = True
                             elif velocity.y < 0:
                                 self.pos.y = tile_rect.bottom
                                 self.velocity.y = 0
+                                self.controlled_velocity.y = 0
                             elif velocity.x > 0:
                                 self.pos.x = tile_rect.left - self.width
+                                self.velocity.x = 0
                             elif velocity.x < 0:
                                 self.pos.x = tile_rect.right
+                                self.velocity.x = 0
+
 
     def draw(self, world):
         pygame.draw.rect(display, "blue", pygame.Rect(world.worldToScreenPosition(self.pos), (self.width, self.height)))
@@ -272,6 +290,7 @@ def main():
         for event in events:
             if event.type == QUIT:
                 running = False
+            ui_manager.process_events(event)
 
         display.fill("black")
 
@@ -281,7 +300,7 @@ def main():
         world.update()
         world.draw()
 
-        debug_box.set_text(f"FPS: {round(clock.get_fps(), 2)}")
+        debug_box.set_text(f"FPS: {round(clock.get_fps(), 2)} <br> Altitude: {-round(player.pos.y/10, 2)}m")
 
         ui_manager.update(delta_time)
         ui_manager.draw_ui(display)
