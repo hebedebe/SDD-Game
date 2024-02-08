@@ -197,7 +197,10 @@ class Player:
     def __init__(self, pos):
         self.pos = Vector2(pos)
         self.velocity = Vector2()
-        self.acceleration = Vector2(0, 800)
+        self.controlled_velocity = Vector2()
+        self.gravity = Vector2(0, 800)
+        self.drag = 2
+        self.drag_on_ground = 20
         self.jump_strength = -400
         self.speed = 200
         self.on_ground = False
@@ -209,27 +212,49 @@ class Player:
     def centre(self):
         return self.pos + Vector2(self.width, self.height)/2
 
+    def getVelocity(self):
+        return self.velocity + self.controlled_velocity
+
+    def getCurrentDrag(self):
+        return (self.drag_on_ground if self.on_ground else self.drag)
+
+    def resetVelocity(self, x=False, y=False):
+        if x:
+            self.velocity.x = 0
+            self.controlled_velocity.x = 0
+        if y:
+            self.velocity.y = 0
+            self.controlled_velocity.y = 0
+
     def update(self, delta_time, world):
         keys = pygame.key.get_pressed()
 
-        self.velocity.x = (keys[K_d] - keys[K_a]) * self.speed
-        self.velocity += self.acceleration * delta_time
+        self.controlled_velocity.x = (keys[K_d] - keys[K_a]) * self.speed
+
+        if keys[K_d] and self.velocity.x < 0:
+            self.velocity.x *= -1
+        if keys[K_a] and self.velocity.x > 0:
+            self.velocity.x *= -1
+
+        self.velocity += self.gravity * delta_time
+
+        self.velocity -= self.velocity * self.getCurrentDrag() * delta_time
 
         self.on_ground = False
-        self.pos.x += self.velocity.x * delta_time
-        self.check_collision(Vector2(self.velocity.x, 0), world)
-        self.pos.y += self.velocity.y * delta_time
-        self.check_collision(Vector2(0, self.velocity.y), world)
+        velocity = self.getVelocity()
+        self.pos.x += velocity.x * delta_time
+        self.check_collision(Vector2(velocity.x, 0), world)
+        self.pos.y += velocity.y * delta_time
+        self.check_collision(Vector2(0, velocity.y), world)
 
         world.target_camera_position = self.pos - Vector2(width//2 - self.width//2, height//2 - self.height//2)
 
-        self.mouse_direction = (world.getMousePos() - self.pos).normalize()
+        self.mouse_direction = (world.getMousePos() - self.centre()).normalize()
 
         for event in events:
             if event.type == MOUSEBUTTONDOWN:
                 if event.button == 1:
                     self.velocity += 1000 * self.mouse_direction
-                    print("Boost!")
 
         if keys[K_w] and self.on_ground:
             self.velocity.y = self.jump_strength
@@ -247,15 +272,17 @@ class Player:
                         if player_rect.colliderect(tile_rect):
                             if velocity.y > 0:
                                 self.pos.y = tile_rect.top - self.height
-                                self.velocity.y = 0
+                                self.resetVelocity(y=True)
                                 self.on_ground = True
                             elif velocity.y < 0:
                                 self.pos.y = tile_rect.bottom
-                                self.velocity.y = 0
+                                self.resetVelocity(y=True)
                             elif velocity.x > 0:
                                 self.pos.x = tile_rect.left - self.width
+                                self.resetVelocity(x=True)
                             elif velocity.x < 0:
                                 self.pos.x = tile_rect.right
+                                self.resetVelocity(x=True)
 
     def draw(self, world):
         pygame.draw.rect(display, "blue", pygame.Rect(world.worldToScreenPosition(self.pos), (self.width, self.height)))
