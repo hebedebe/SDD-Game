@@ -6,69 +6,34 @@ import pygame_gui as gui
 
 import random
 
+from assetloader import Assets
+from particles import Particle, ExpandingCircleParticle
+import util
+
 pygame.init()
 
 FPS = 6000
 TILE_SIZE = 16
 CHUNK_SIZE = Vector2(20, 20)
 
-width, height = 160 * 3, 180 * 2
+width, height = 480, 360
 display = pygame.display.set_mode((width, height), SCALED | FULLSCREEN)
+
 clock = pygame.time.Clock()
+
 events = []
+
 delta_time = 0
 timescale = 1
+
+assets = Assets()
+
 ui_manager = gui.UIManager((width, height))
 debug_box = gui.elements.UITextBox(
     "",
     Rect(0, 0, 120, 30),
     ui_manager
 )
-
-
-class Particle:
-    def __init__(self, pos, colour="white"):
-        self.pos = Vector2(pos)
-        self.velocity = Vector2()
-        self.drag = 0
-        self.colour = colour
-        self.size = 5
-        self.size_per_second = 0
-        self.gravity = Vector2(0, 800)
-        self.kill = False
-
-    def update(self):
-        self.velocity += self.gravity * delta_time
-        self.velocity = self.velocity.lerp(Vector2(), self.drag * delta_time)
-        self.pos += self.velocity * delta_time
-
-        self.size += self.size_per_second * delta_time
-
-    def draw(self, world):
-        pygame.draw.circle(display, self.colour, world.worldToScreenPosition(self.pos), self.size)
-
-
-class ExpandingCircleParticle(Particle):
-    def __init__(self, pos, target_radius, colour):
-        super().__init__(pos, colour)
-        self.radius = target_radius/2
-        self.width = self.radius
-
-        self.target_radius = target_radius
-        self.target_width = 1
-
-    def update(self):
-        rad_spd = 4 * 100/self.target_radius
-        wid_spd = rad_spd * 7/4
-
-        self.radius = pygame.math.lerp(self.radius, self.target_radius, rad_spd * delta_time)
-        self.width = pygame.math.lerp(self.width, self.target_width, wid_spd * delta_time)
-
-        if self.width <= 1.5:
-            self.kill = True
-
-    def draw(self, world):
-        pygame.draw.circle(display, self.colour, world.worldToScreenPosition(self.pos), self.radius, int(self.width))
 
 
 class Chunk:
@@ -88,12 +53,15 @@ class World:
         self.chunks = {}
         self.local_chunks = []
 
-        self.particles = []
+        self.particles = set()
 
         self.camera_position = Vector2(0, 0)
         self.real_camera_position = Vector2(0, 0)
         self.camera_position_offset = Vector2(0, 0)
         self.target_camera_position = Vector2(0, 0)
+
+    def addParticle(self, particle):
+        self.particles.add(particle)
 
     def getMousePos(self):
         screen_pos = pygame.mouse.get_pos()
@@ -136,8 +104,6 @@ class World:
         )
 
     def update(self):
-        keys = pygame.key.get_pressed()
-        speed = 160*6
         lerp_speed = 10
         offset_lerp_speed = 10
         self.camera_position_offset = self.camera_position_offset.smoothstep(Vector2(), offset_lerp_speed * delta_time)
@@ -145,11 +111,15 @@ class World:
                                                                    pygame.math.clamp(lerp_speed * delta_time, 0, 1))
         self.camera_position = self.real_camera_position + self.camera_position_offset
 
+        particles_to_kill = set()
         for particle in self.particles:
             if particle.kill:
-                self.particles.remove(particle)
+                particles_to_kill.add(particle)
                 continue
-            particle.update()
+            particle.update(delta_time)
+
+        for particle in particles_to_kill:
+            self.particles.remove(particle)
 
     def draw(self):
         chunk_positions = [  # positions to check for chunks at
@@ -176,7 +146,6 @@ class World:
                 chunk = self.generateChunk(chunk_pos)
             self.local_chunks.append(chunk)
 
-
         for chunk in self.local_chunks:
             for x, c in enumerate(chunk.tiles):
                 for y, tile in enumerate(c):
@@ -186,11 +155,19 @@ class World:
                         pygame.draw.rect(display, colour, Rect(*pos, TILE_SIZE, TILE_SIZE))
             pygame.draw.rect(display, "red", Rect(self.worldToScreenPosition(chunk.pos), TILE_SIZE * CHUNK_SIZE), 1)
 
-        for particle in self.particles:
-            particle.draw(self)
+        pygame.draw.circle(display, "red",
+                           self.worldToScreenPosition(self.target_camera_position + Vector2(width, height) // 2), 3)
+        pygame.draw.circle(display, "yellow",
+                           self.worldToScreenPosition(self.camera_position + Vector2(width, height) // 2), 3)
+        pygame.draw.circle(display, "green",
+                           self.worldToScreenPosition(self.real_camera_position + Vector2(width, height) // 2), 3)
 
-        pygame.draw.circle(display, "red", self.worldToScreenPosition(self.target_camera_position + Vector2(width, height)//2), 3)
-        pygame.draw.circle(display, "green", self.worldToScreenPosition(self.real_camera_position + Vector2(width, height)//2), 3)
+        display.blit(assets.get("border_left"), (0, 0))
+        display.blit(assets.get("border_right"), (420, 0))
+
+    def drawParticles(self):
+        for particle in self.particles:
+            particle.draw(display, self)
 
 
 class Player:
@@ -198,11 +175,12 @@ class Player:
         self.pos = Vector2(pos)
         self.velocity = Vector2()
         self.controlled_velocity = Vector2()
-        self.gravity = Vector2(0, 800)
+        self.gravity = Vector2(0, 1600)
         self.drag = 2
         self.drag_on_ground = 20
-        self.jump_strength = -400
+        self.jump_strength = -800
         self.speed = 200
+        self.boost_distance = 100
         self.on_ground = False
         self.width = 16
         self.height = 32
@@ -210,13 +188,13 @@ class Player:
         self.mouse_direction = Vector2
 
     def centre(self):
-        return self.pos + Vector2(self.width, self.height)/2
+        return self.pos + Vector2(self.width, self.height) / 2
 
     def getVelocity(self):
         return self.velocity + self.controlled_velocity
 
     def getCurrentDrag(self):
-        return (self.drag_on_ground if self.on_ground else self.drag)
+        return self.drag_on_ground if self.on_ground else self.drag
 
     def resetVelocity(self, x=False, y=False):
         if x:
@@ -247,7 +225,7 @@ class Player:
         self.pos.y += velocity.y * delta_time
         self.check_collision(Vector2(0, velocity.y), world)
 
-        world.target_camera_position = self.pos - Vector2(width//2 - self.width//2, height//2 - self.height//2)
+        world.target_camera_position = self.pos - Vector2(width // 2 - self.width // 2, height // 2 - self.height // 2)
 
         self.mouse_direction = (world.getMousePos() - self.centre()).normalize()
 
@@ -255,6 +233,14 @@ class Player:
             if event.type == MOUSEBUTTONDOWN:
                 if event.button == 1:
                     self.velocity += 1000 * self.mouse_direction
+                    world.applyScreenshake(10)
+                    world.addParticle(
+                        ExpandingCircleParticle(
+                            self.centre() + Vector2(0, self.width // 2),
+                            40,
+                            "yellow"
+                        )
+                    )
 
         if keys[K_w] and self.on_ground:
             self.velocity.y = self.jump_strength
@@ -286,7 +272,8 @@ class Player:
 
     def draw(self, world):
         pygame.draw.rect(display, "blue", pygame.Rect(world.worldToScreenPosition(self.pos), (self.width, self.height)))
-        pygame.draw.line(display, "yellow", world.worldToScreenPosition(self.centre() + self.mouse_direction * 20), world.worldToScreenPosition(self.centre() + self.mouse_direction * 65), 3)
+        pygame.draw.line(display, "yellow", world.worldToScreenPosition(self.centre() + self.mouse_direction * 20),
+                         world.worldToScreenPosition(self.centre() + self.mouse_direction * 65), 3)
 
 
 def main():
@@ -313,10 +300,13 @@ def main():
         ui_manager.update(delta_time)
         ui_manager.draw_ui(display)
 
+        world.drawParticles()
+
         pygame.display.flip()
 
         delta_time = pygame.math.clamp(clock.tick(FPS) / 1000, 0, 1) * timescale
 
     pygame.quit()
+
 
 main()

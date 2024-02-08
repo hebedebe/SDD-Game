@@ -1,0 +1,2 @@
+todo
+ - switch the player's "boost" to a "teleport" using a linecast which applies a slight velocity boost at the end
