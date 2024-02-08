@@ -1,7 +1,7 @@
 import pygame
 
 
-def linecast(start_pos, direction, distance, collidable_objects, distance_threshold=1):
+def linecast(start_pos, direction, distance, collidable_objects, distance_threshold=1) -> tuple[pygame.Vector2, list]:
     direction.normalize_ip()
     pos = pygame.Vector2(start_pos)
     distance_marched = 0

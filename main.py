@@ -233,6 +233,17 @@ class Player:
             if event.type == MOUSEBUTTONDOWN:
                 if event.button == 1:
                     self.velocity += 1000 * self.mouse_direction
+                    # targeting_hitbox_size = Vector2(20, 20)
+                    # targeting_hitbox = pygame.Rect(pygame.mouse.get_pos() - targeting_hitbox_size//2,
+                    #                                targeting_hitbox_size)
+                    # targets = []
+                    # for entity in world.entities:
+                    #     targets.append(entity.hitbox)
+                    #
+                    # targeting_hitbox.collidelist(targets)
+                    #
+                    # print(targeting_hitbox)
+
                     world.applyScreenshake(10)
                     world.addParticle(
                         ExpandingCircleParticle(
