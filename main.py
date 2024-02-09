@@ -9,15 +9,11 @@ import random
 from assetloader import Assets
 from particles import Particle, ExpandingCircleParticle
 import util
+from constants import *
 
 pygame.init()
 
-FPS = 6000
-TILE_SIZE = 16
-CHUNK_SIZE = Vector2(20, 20)
-
-width, height = 480, 360
-display = pygame.display.set_mode((width, height), SCALED | FULLSCREEN)
+display = pygame.display.set_mode((WIDTH, HEIGHT), SCALED | FULLSCREEN)
 
 clock = pygame.time.Clock()
 
@@ -28,7 +24,7 @@ timescale = 1
 
 assets = Assets()
 
-ui_manager = gui.UIManager((width, height))
+ui_manager = gui.UIManager((WIDTH, HEIGHT))
 debug_box = gui.elements.UITextBox(
     "",
     Rect(0, 0, 120, 30),
@@ -52,6 +48,7 @@ class World:
     def __init__(self):
         self.chunks = {}
         self.local_chunks = []
+        self.entities = []
 
         self.particles = set()
 
@@ -124,14 +121,14 @@ class World:
     def draw(self):
         chunk_positions = [  # positions to check for chunks at
             Vector2(0, 0),  # top left
-            Vector2(width, 0),  # top right
-            Vector2(width, height),  # bottom right
-            Vector2(0, height),  # bottom left
-            Vector2(width // 2, height // 2),  # centre
-            Vector2(width // 2, 0),  # top middle
-            Vector2(width // 2, height),  # bottom middle
-            Vector2(0, height // 2),  # left middle
-            Vector2(width, height // 2)  # right middle
+            Vector2(WIDTH, 0),  # top right
+            Vector2(WIDTH, HEIGHT),  # bottom right
+            Vector2(0, HEIGHT),  # bottom left
+            Vector2(WIDTH // 2, HEIGHT // 2),  # centre
+            Vector2(WIDTH // 2, 0),  # top middle
+            Vector2(WIDTH // 2, HEIGHT),  # bottom middle
+            Vector2(0, HEIGHT // 2),  # left middle
+            Vector2(WIDTH, HEIGHT // 2)  # right middle
         ]
 
         self.local_chunks = []
@@ -156,14 +153,14 @@ class World:
             pygame.draw.rect(display, "red", Rect(self.worldToScreenPosition(chunk.pos), TILE_SIZE * CHUNK_SIZE), 1)
 
         pygame.draw.circle(display, "red",
-                           self.worldToScreenPosition(self.target_camera_position + Vector2(width, height) // 2), 3)
+                           self.worldToScreenPosition(self.target_camera_position + Vector2(WIDTH, HEIGHT) // 2), 3)
         pygame.draw.circle(display, "yellow",
-                           self.worldToScreenPosition(self.camera_position + Vector2(width, height) // 2), 3)
+                           self.worldToScreenPosition(self.camera_position + Vector2(WIDTH, HEIGHT) // 2), 3)
         pygame.draw.circle(display, "green",
-                           self.worldToScreenPosition(self.real_camera_position + Vector2(width, height) // 2), 3)
+                           self.worldToScreenPosition(self.real_camera_position + Vector2(WIDTH, HEIGHT) // 2), 3)
 
-        display.blit(assets.get("border_left"), (0, 0))
-        display.blit(assets.get("border_right"), (420, 0))
+        # display.blit(assets.get("border_left"), (0, 0))
+        # display.blit(assets.get("border_right"), (420, 0))
 
     def drawParticles(self):
         for particle in self.particles:
@@ -175,15 +172,22 @@ class Player:
         self.pos = Vector2(pos)
         self.velocity = Vector2()
         self.controlled_velocity = Vector2()
+
         self.gravity = Vector2(0, 1600)
+
         self.drag = 2
         self.drag_on_ground = 20
+
         self.jump_strength = -800
         self.speed = 200
         self.boost_distance = 100
+
         self.on_ground = False
+
         self.width = 16
         self.height = 32
+
+        self.health = 100
 
         self.mouse_direction = Vector2
 
@@ -225,7 +229,7 @@ class Player:
         self.pos.y += velocity.y * delta_time
         self.check_collision(Vector2(0, velocity.y), world)
 
-        world.target_camera_position = self.pos - Vector2(width // 2 - self.width // 2, height // 2 - self.height // 2)
+        world.target_camera_position = self.pos - Vector2(WIDTH // 2 - self.width // 2, HEIGHT // 2 - self.height // 2)
 
         self.mouse_direction = (world.getMousePos() - self.centre()).normalize()
 
@@ -290,13 +294,17 @@ class Player:
 def main():
     global delta_time, events
     world = World()
-    player = Player((width // 2, height // 2))
+    player = Player((WIDTH // 2, HEIGHT // 2))
+    player_health_fade = 100
     running = True
     while running:
         events = pygame.event.get()
         for event in events:
             if event.type == QUIT:
                 running = False
+            if event.type == KEYDOWN:
+                if event.key == K_SPACE:
+                    player.health -= 20
 
         display.fill("black")
 
@@ -307,6 +315,21 @@ def main():
         world.draw()
 
         debug_box.set_text(f"FPS: {round(clock.get_fps(), 2)}")
+
+        health_bar_pos = Vector2(0, HEIGHT-32)
+        if player.health > 0:
+            player_health_fade = pygame.math.lerp(player_health_fade, player.health, delta_time * 5)
+            pygame.draw.line(display, HEALTH_BAR_SUB_COLOUR,
+                             health_bar_pos + [14, 15],
+                             health_bar_pos + [14 + player_health_fade, 15],
+                             13
+                             )
+            pygame.draw.line(display, HEALTH_BAR_COLOUR,
+                             health_bar_pos + [14, 15],
+                             health_bar_pos + [14 + player.health, 15],
+                             13
+                             )
+        display.blit(assets.get("bar_outline"), health_bar_pos)
 
         ui_manager.update(delta_time)
         ui_manager.draw_ui(display)

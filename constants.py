@@ -1,0 +1,10 @@
+from pygame import Vector2
+
+HEALTH_BAR_COLOUR = (255, 0, 107)
+HEALTH_BAR_SUB_COLOUR = (255, 128, 181)
+
+FPS = 6000
+TILE_SIZE = 16
+CHUNK_SIZE = Vector2(20, 20)
+
+WIDTH, HEIGHT = 480, 360
