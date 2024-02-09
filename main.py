@@ -1,6 +1,5 @@
 import pygame
 from pygame.locals import *
-from pygame import Vector2
 
 import pygame_gui as gui
 
