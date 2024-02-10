@@ -5,6 +5,7 @@ import pygame_gui as gui
 
 import random
 
+import particles
 from assetloader import Assets
 from particles import Particle, ExpandingCircleParticle
 import util
@@ -101,7 +102,7 @@ class World:
 
     def update(self):
         lerp_speed = 10
-        offset_lerp_speed = 10
+        offset_lerp_speed = 50
         self.camera_position_offset = self.camera_position_offset.smoothstep(Vector2(), offset_lerp_speed * delta_time)
         self.real_camera_position = self.real_camera_position.lerp(self.target_camera_position,
                                                                    pygame.math.clamp(lerp_speed * delta_time, 0, 1))
@@ -235,19 +236,29 @@ class Player:
         for event in events:
             if event.type == MOUSEBUTTONDOWN:
                 if event.button == 1:
+                    self.velocity.y = 0
                     self.velocity += 1000 * self.mouse_direction
-                    # targeting_hitbox_size = Vector2(20, 20)
-                    # targeting_hitbox = pygame.Rect(pygame.mouse.get_pos() - targeting_hitbox_size//2,
-                    #                                targeting_hitbox_size)
-                    # targets = []
-                    # for entity in world.entities:
-                    #     targets.append(entity.hitbox)
-                    #
-                    # targeting_hitbox.collidelist(targets)
-                    #
-                    # print(targeting_hitbox)
 
-                    world.applyScreenshake(10)
+                    direction = self.getVelocity().normalize()
+
+                    world.addParticle(
+                        particles.Spark(
+                            self.centre(),
+                            100,
+                            direction,
+                            "white"
+                        )
+                    )
+
+                    world.applyScreenshake(15)
+                    particles.worldEmitCircle(
+                        world,
+                        self.centre(),
+                        10,
+                        "white",
+                        180,
+                        200,
+                    )
                     world.addParticle(
                         ExpandingCircleParticle(
                             self.centre() + Vector2(0, self.width // 2),
