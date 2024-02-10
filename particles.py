@@ -61,7 +61,7 @@ class Spark(Particle):
         self.width = 5
 
     def update(self, delta_time):
-        width_shrink_speed = 5
+        width_shrink_speed = 10
         length_shrink_speed = 10
         self.width = pygame.math.lerp(self.width, 0, delta_time * width_shrink_speed)
         self.length = pygame.math.lerp(self.length, 0, delta_time * length_shrink_speed)

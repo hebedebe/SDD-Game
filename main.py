@@ -159,8 +159,8 @@ class World:
         pygame.draw.circle(display, "green",
                            self.worldToScreenPosition(self.real_camera_position + Vector2(WIDTH, HEIGHT) // 2), 3)
 
-        # display.blit(assets.get("border_left"), (0, 0))
-        # display.blit(assets.get("border_right"), (420, 0))
+        display.blit(assets.get("border_left"), (0, 0))
+        display.blit(assets.get("border_right"), (420, 0))
 
     def drawParticles(self):
         for particle in self.particles:
