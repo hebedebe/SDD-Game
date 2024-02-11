@@ -36,12 +36,6 @@ class Chunk:
     def __init__(self, pos):
         self.pos = Vector2(pos)
         self.tiles = [[0 for y in range(int(CHUNK_SIZE.y))] for x in range(int(CHUNK_SIZE.x))]
-        for i in range(5):
-            self.tiles[
-                random.randint(0, int(CHUNK_SIZE.x) - 1)
-            ][
-                random.randint(0, int(CHUNK_SIZE.y) - 1)
-            ] = 1
 
 
 class World:
