@@ -203,6 +203,7 @@ class Player:
             self.controlled_velocity.y = 0
 
     def update(self, delta_time, world):
+        global timescale
         keys = pygame.key.get_pressed()
 
         self.controlled_velocity.x = (keys[K_d] - keys[K_a]) * self.speed
@@ -264,6 +265,10 @@ class Player:
         if keys[K_w] and self.on_ground:
             self.velocity.y = self.jump_strength
 
+        timescale = DEFAULT_TIME_SCALE
+        if keys[K_SPACE]:
+            timescale = SLOWED_TIME_SCALE
+
     def check_collision(self, velocity, world):
         player_rect = pygame.Rect(self.pos.x, self.pos.y, self.width, self.height)
         for chunk in world.local_chunks:
@@ -306,9 +311,6 @@ def main():
         for event in events:
             if event.type == QUIT:
                 running = False
-            if event.type == KEYDOWN:
-                if event.key == K_SPACE:
-                    player.health -= 20
 
         display.fill("black")
 
