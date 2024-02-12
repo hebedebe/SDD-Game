@@ -85,7 +85,7 @@ class World:
             pos = Vector2(room_pos) * CHUNK_SIZE.elementwise() * TILE_SIZE
             chunk = self.generateChunk(pos)
             # chunk.fill(0)
-            chunk.tiles = list(zip(*random.choice(rooms)[::-1]))
+            chunk.tiles = random.choice(rooms)#list(zip(*random.choice(rooms)[::-1]))
 
         end_time = time.time_ns()
         print(f"Level generated in {(end_time-start_time)/1000000}ms")

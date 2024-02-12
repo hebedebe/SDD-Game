@@ -1,13 +1,16 @@
 from glob import glob
 from tqdm import tqdm
+import PIL
+from PIL import Image
 
 
 def load_rooms(path):
     rooms = []
     for file in tqdm(glob(path)):
-        im = iio.imread(file)
-        im.
-        print(im.shape)
+        img = Image.open(file)
+        room_data = [[1 if img.getpixel((x, y)) == 19 else 0 for y in range(img.height)] for x in range(img.width)]
+        rooms.append(room_data)
+
     return rooms
 
 
