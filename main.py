@@ -5,10 +5,14 @@ import pygame_gui as gui
 
 import random
 
+import time
+
+from tqdm import tqdm
+
 import particles
 from assetloader import Assets
 from particles import Particle, ExpandingCircleParticle
-import util
+from levels import rooms
 from constants import *
 
 pygame.init()
@@ -35,7 +39,10 @@ debug_box = gui.elements.UITextBox(
 class Chunk:
     def __init__(self, pos):
         self.pos = Vector2(pos)
-        self.tiles = [[0 for y in range(int(CHUNK_SIZE.y))] for x in range(int(CHUNK_SIZE.x))]
+        self.tiles = [[1 for y in range(int(CHUNK_SIZE.y))] for x in range(int(CHUNK_SIZE.x))]
+
+    def fill(self, tile):
+        self.tiles = [[tile for y in range(int(CHUNK_SIZE.y))] for x in range(int(CHUNK_SIZE.x))]
 
 
 class World:
@@ -51,6 +58,38 @@ class World:
         self.camera_position_offset = Vector2(0, 0)
         self.target_camera_position = Vector2(0, 0)
 
+        self.generateDungeonLevel((0, 0), 1000)
+
+
+    def generatePerlinLevel(self):
+        ...
+
+    def generateDungeonLevel(self, start_pos, level_length):
+        start_time = time.time_ns()
+
+        walker_pos = Vector2(start_pos)
+
+        room_positions = []
+
+        for i in tqdm(range(level_length)):
+            room_pos = [*walker_pos]
+            room_positions.append(room_pos)
+            while walker_pos in room_positions:
+                walker_pos += random.choice([
+                    # Vector2(0, 1),
+                    Vector2(0, -1),
+                    Vector2(-1, 0),
+                    Vector2(1, 0),
+                ])
+
+            pos = Vector2(room_pos) * CHUNK_SIZE.elementwise() * TILE_SIZE
+            chunk = self.generateChunk(pos)
+            # chunk.fill(0)
+            chunk.tiles = list(zip(*random.choice(rooms)[::-1]))
+
+        end_time = time.time_ns()
+        print(f"Level generated in {(end_time-start_time)/1000000}ms")
+
     def addParticle(self, particle):
         self.particles.add(particle)
 
@@ -60,7 +99,7 @@ class World:
         return world_pos
 
     @staticmethod
-    def getChunkAtPos(pos):
+    def getChunkPos(pos):
         pos = Vector2(pos)
         chunk_pos_vec2 = pos - Vector2(
             pos.x % (CHUNK_SIZE.x * TILE_SIZE),
@@ -70,7 +109,7 @@ class World:
         return chunk_pos
 
     def getTileAtPos(self, pos):
-        chunk_pos = self.getChunkAtPos(pos)
+        chunk_pos = self.getChunkPos(pos)
         chunk = self.chunks[chunk_pos]
         remainder_vec2 = (pos - chunk_pos) // TILE_SIZE
         remainder = (remainder_vec2.x, remainder_vec2.y)
@@ -78,7 +117,7 @@ class World:
         return tile
 
     def generateChunk(self, position):
-        chunk_pos = self.getChunkAtPos(position)
+        chunk_pos = self.getChunkPos(position)
         chunk = Chunk(chunk_pos)
         self.chunks[chunk_pos] = chunk
         return chunk
@@ -112,23 +151,31 @@ class World:
         for particle in particles_to_kill:
             self.particles.remove(particle)
 
+    def centre(self):
+        return self.camera_position + Vector2(WIDTH, HEIGHT) // 2
+
     def draw(self):
-        chunk_positions = [  # positions to check for chunks at
-            Vector2(0, 0),  # top left
-            Vector2(WIDTH, 0),  # top right
-            Vector2(WIDTH, HEIGHT),  # bottom right
-            Vector2(0, HEIGHT),  # bottom left
-            Vector2(WIDTH // 2, HEIGHT // 2),  # centre
-            Vector2(WIDTH // 2, 0),  # top middle
-            Vector2(WIDTH // 2, HEIGHT),  # bottom middle
-            Vector2(0, HEIGHT // 2),  # left middle
-            Vector2(WIDTH, HEIGHT // 2)  # right middle
-        ]
+        chunk_positions = []  # positions to check for chunks at
+        #     Vector2(0, 0),  # top left
+        #     Vector2(WIDTH, 0),  # top right
+        #     Vector2(WIDTH, HEIGHT),  # bottom right
+        #     Vector2(0, HEIGHT),  # bottom left
+        #     Vector2(WIDTH // 2, HEIGHT // 2),  # centre
+        #     Vector2(WIDTH // 2, 0),  # top middle
+        #     Vector2(WIDTH // 2, HEIGHT),  # bottom middle
+        #     Vector2(0, HEIGHT // 2),  # left middle
+        #     Vector2(WIDTH, HEIGHT // 2)  # right middle
+        # ]
+
+        for x_ in range(int(WIDTH//CHUNK_SIZE.x)):
+            for y_ in range(int(HEIGHT // CHUNK_SIZE.y)):
+                pos = Vector2(x_, y_) * CHUNK_SIZE.elementwise()
+                chunk_positions.append(pos)
 
         self.local_chunks = []
 
         for pos in chunk_positions:
-            chunk_pos = self.getChunkAtPos(pos + self.camera_position)
+            chunk_pos = self.getChunkPos(pos + self.camera_position)
             if chunk_pos in self.chunks:
                 chunk = self.chunks[chunk_pos]
                 if chunk in self.local_chunks:
@@ -144,7 +191,7 @@ class World:
                     if tile:
                         colour = "white"
                         pygame.draw.rect(display, colour, Rect(*pos, TILE_SIZE, TILE_SIZE))
-            pygame.draw.rect(display, "red", Rect(self.worldToScreenPosition(chunk.pos), TILE_SIZE * CHUNK_SIZE), 1)
+            # pygame.draw.rect(display, "red", Rect(self.worldToScreenPosition(chunk.pos), TILE_SIZE * CHUNK_SIZE), 1)
 
         pygame.draw.circle(display, "red",
                            self.worldToScreenPosition(self.target_camera_position + Vector2(WIDTH, HEIGHT) // 2), 3)
@@ -153,12 +200,30 @@ class World:
         pygame.draw.circle(display, "green",
                            self.worldToScreenPosition(self.real_camera_position + Vector2(WIDTH, HEIGHT) // 2), 3)
 
-        display.blit(assets.get("border_left"), (0, 0))
-        display.blit(assets.get("border_right"), (420, 0))
+        # display.blit(assets.get("border_left"), (0, 0))
+        # display.blit(assets.get("border_right"), (420, 0))
 
     def drawParticles(self):
         for particle in self.particles:
             particle.draw(display, self)
+
+
+class Decal:
+    def __init__(self, pos, img, lifetime=None):
+        self.pos = Vector2(pos)
+        self.img = assets.get(img)
+        self.lifetime = lifetime
+        self.kill = False
+
+    def update(self, world):
+        if not pygame.Rect(world.camera_position, (WIDTH, HEIGHT)).colliderect(self.img.get_rect()):
+            return
+
+        if self.lifetime is not None:
+            self.lifetime -= delta_time
+        if self.lifetime <= 0:
+            self.kill = True
+        display.blit(self.img, self.pos)
 
 
 class Player:
@@ -173,7 +238,7 @@ class Player:
         self.drag_on_ground = 20
 
         self.jump_strength = -800
-        self.speed = 200
+        self.speed = 400
         self.boost_distance = 100
 
         self.on_ground = False
@@ -303,7 +368,7 @@ class Player:
 def main():
     global delta_time, events
     world = World()
-    player = Player((WIDTH // 2, HEIGHT // 2))
+    player = Player((0, 0))
     player_health_fade = 100
     running = True
     while running:
@@ -322,7 +387,7 @@ def main():
 
         debug_box.set_text(f"FPS: {round(clock.get_fps(), 2)}")
 
-        health_bar_pos = Vector2(0, HEIGHT-32)
+        health_bar_pos = Vector2(0, HEIGHT - 32)
         if player.health > 0:
             player_health_fade = pygame.math.lerp(player_health_fade, player.health, delta_time * 5)
             pygame.draw.line(display, HEALTH_BAR_SUB_COLOUR,

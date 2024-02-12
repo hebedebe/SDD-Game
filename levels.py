@@ -1,15 +1,15 @@
-
-class RoomData:
-    def __init__(self, north, east, south, west, layout, entities):
-        self.north = north
-        self.east = east
-        self.south = south
-        self.west = west
-
-        self.layout = layout
-        self.entities = entities
+from glob import glob
+from tqdm import tqdm
 
 
-rooms = {
-    RoomData(1, 0, 0, 0, [], [])  # example level that contains nothing and has an entrance to the north
-}
+def load_rooms(path):
+    rooms = []
+    for file in tqdm(glob(path)):
+        im = iio.imread(file)
+        im.
+        print(im.shape)
+    return rooms
+
+
+rooms = load_rooms("gamedata/rooms/*.png")
+print(rooms)
